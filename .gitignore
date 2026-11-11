@@ -6,3 +6,7 @@ __pycache__/
 .pytest_cache/
 runs/
 dist/
+
+# generated benchmark data (not source)
+docs/results/latents.npy
+_vizdoom.ini
