@@ -49,7 +49,7 @@ def build_arm(arm, env, enc, U, rng, n_act):
         wr = ReservoirObservation(env, w, enc, DT)
         if arm == "reservoir_white":
             wr.set_whitener(Whitener.fit(collect(wr, N_CALIB, rng, n_act), 24))
-        return wr, (0.05 if arm == "reservoir_raw" else 0.5), arm == "reservoir_raw" or True
+        return wr, (0.05 if arm == "reservoir_raw" else 0.5), True
     W = 1 if arm == "window1_white" else 2
     proj = Whitener.fit(U, 12)
     wr = FeatureObservation(env, enc, WindowMemory(12, W), DT, input_proj=proj)

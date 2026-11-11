@@ -18,6 +18,7 @@ from .diagnostics import RunningMoments, StateHealth
 from .encoder import FrameEncoder
 from .envs import collect_pooled_frames, make_doom_env
 from .es import evaluate, train_es
+from .features import Whitener
 from .policy import LinearPolicy, RandomPolicy
 from .reservoir import ReservoirConfig, ReservoirWeights
 from .wrappers import ReservoirObservation
@@ -46,26 +47,37 @@ def _write_calibration(path: Path, results: list[CalibrationResult]) -> None:
 
 
 def save_checkpoint(
-    path: Path, theta: Any, cfg: ExperimentConfig, res_cfg: ReservoirConfig, enc: FrameEncoder
+    path: Path,
+    theta: Any,
+    cfg: ExperimentConfig,
+    res_cfg: ReservoirConfig,
+    enc: FrameEncoder,
+    whitener: Whitener | None = None,
 ) -> None:
+    extra = whitener.to_arrays() if whitener is not None else {}
     np.savez(
         path,
         theta=theta,
         res_cfg=json.dumps(asdict(res_cfg)),
         exp_cfg=json.dumps(asdict(cfg)),
+        has_whitener=np.int8(whitener is not None),
         version=__version__,
         **enc.to_arrays(),
+        **extra,
     )
 
 
-def load_checkpoint(path: Path) -> tuple[Any, ReservoirConfig, ExperimentConfig, FrameEncoder]:
+def load_checkpoint(
+    path: Path,
+) -> tuple[Any, ReservoirConfig, ExperimentConfig, FrameEncoder, Whitener | None]:
     from .config import build
 
     z = np.load(path, allow_pickle=False)
     exp = build(ExperimentConfig, json.loads(str(z["exp_cfg"])))
     res = ReservoirConfig(**json.loads(str(z["res_cfg"])))
     enc = FrameEncoder.from_arrays(exp.encoder.height, exp.encoder.width, z)
-    return z["theta"], res, exp, enc
+    wh = Whitener.from_arrays(z) if int(z["has_whitener"]) else None
+    return z["theta"], res, exp, enc, wh
 
 
 def run_experiment(cfg: ExperimentConfig, out_dir: Path) -> dict[str, Any]:
@@ -95,19 +107,35 @@ def run_experiment(cfg: ExperimentConfig, out_dir: Path) -> dict[str, Any]:
 
     weights = ReservoirWeights.build(res_cfg, enc.dim)
     wrapped = ReservoirObservation(env, weights, enc, dt=dt)
+    if cfg.whiten_k is not None:
+        # Fix the whitening projection on a random-policy probe *before* training: the
+        # readout is then linear in the decorrelated low-dimension state a diagonal
+        # search needs. The probe state is the raw memory output (no whitener yet).
+        rng = np.random.default_rng(cfg.es.seed)
+        states: list[np.ndarray] = []
+        for _ in range(20):
+            o, _ = wrapped.reset(seed=int(rng.integers(1 << 30)))
+            for _ in range(cfg.es.max_steps):
+                states.append(o)
+                o, _, term, trunc, _ = wrapped.step(int(rng.integers(int(env.action_space.n))))
+                if term or trunc:
+                    break
+        wrapped.set_whitener(Whitener.fit(np.asarray(states, np.float32), cfg.whiten_k))
     es_res = train_es(wrapped, cfg.es, out_dir)
 
-    n_feat, n_act = weights.n, int(env.action_space.n)
+    n_feat, n_act = wrapped.obs_dim, int(env.action_space.n)
     trained = LinearPolicy(es_res.theta, n_feat, n_act)
     held_out = 10**7  # seeds disjoint from training
-    moments = RunningMoments(n_feat)
+    # Health moments track the raw memory state (wrappers._advance feeds pre-whitener f),
+    # not the readout input, so the width is the memory dim even when whitening is on.
+    moments = RunningMoments(wrapped.memory_dim)
     wrapped.moments = moments
     r_trained = evaluate(wrapped, trained, cfg.es.eval_episodes, held_out, cfg.es.max_steps)
     wrapped.moments = None
     r_random = evaluate(
         wrapped, RandomPolicy(n_act, cfg.es.seed), cfg.es.eval_episodes, held_out, cfg.es.max_steps
     )
-    save_checkpoint(out_dir / "checkpoint.npz", es_res.theta, cfg, res_cfg, enc)
+    save_checkpoint(out_dir / "checkpoint.npz", es_res.theta, cfg, res_cfg, enc, wrapped.whitener)
 
     def stats(r: Any) -> dict[str, float]:
         return {"mean": float(np.mean(r)), "sem": float(np.std(r) / np.sqrt(len(r)))}

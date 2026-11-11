@@ -229,16 +229,24 @@ R = np.array(
         for _ in range(n_theta)
     ]
 )
-within = R.var(axis=1, ddof=1).mean()
-between = R.mean(axis=1).var(ddof=1)
-icc3 = (between - within / 3) / max(between, 1e-9)  # reliability of a 3-episode mean
+# CRN two-way ANOVA: the candidate effect must be net of the episode effect and
+# residual. Using var(candidate means) directly is wrong: those means still contain
+# the within-candidate noise, which is why the old estimate went negative.
+gm = R.mean()
+ms_c = n_ep * ((R.mean(1) - gm) ** 2).sum() / (n_theta - 1)
+ms_r = ((R - R.mean(1, keepdims=True) - R.mean(0, keepdims=True) + gm) ** 2).sum() / (
+    (n_theta - 1) * (n_ep - 1)
+)
+var_c = max((ms_c - ms_r) / n_ep, 0.0)
+rel = lambda k: float(var_c / (var_c + ms_r / k))
 out["fitness_noise"] = {
     "n_theta": n_theta,
     "n_episodes": n_ep,
-    "within_sd": float(np.sqrt(within)),
-    "sd_of_candidate_means": float(np.sqrt(between)),
-    "reliability_3_episodes": float((between - within / 3) / between) if between > 0 else None,
-    "reliability_12_episodes": float((between - within / 12) / between) if between > 0 else None,
+    "sd_candidate_effect": float(np.sqrt(var_c)),
+    "sd_residual": float(np.sqrt(ms_r)),
+    "reliability_3_episodes": rel(3),
+    "reliability_12_episodes": rel(n_ep),
+    "F_candidate": float(ms_c / ms_r),
     "candidate_mean_return_range": [float(R.mean(1).min()), float(R.mean(1).max())],
 }
 json.dump(out, open("docs/results/data_shape.json", "w"), indent=2)

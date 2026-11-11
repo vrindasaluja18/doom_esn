@@ -35,11 +35,13 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2))
         return 0
 
-    theta, res_cfg, exp, enc = load_checkpoint(args.checkpoint)
+    theta, res_cfg, exp, enc, wh = load_checkpoint(args.checkpoint)
     env = make_doom_env(exp.env.env_id, exp.env.frame_skip)
     w = ReservoirWeights.build(res_cfg, enc.dim)
     wrapped = ReservoirObservation(env, w, enc, dt=float(exp.env.frame_skip))
-    pol = LinearPolicy(theta, w.n, int(env.action_space.n))
+    if wh is not None:
+        wrapped.set_whitener(wh)
+    pol = LinearPolicy(theta, wrapped.obs_dim, int(env.action_space.n))
     r = evaluate(wrapped, pol, args.episodes, 10**7, exp.es.max_steps)
     print(f"return {np.mean(r):.1f} +/- {np.std(r) / np.sqrt(len(r)):.1f} over {len(r)} episodes")
     return 0

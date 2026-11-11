@@ -63,6 +63,7 @@ class ExperimentConfig:
     reservoir: ReservoirConfig = field(default_factory=ReservoirConfig)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     es: ESConfig = field(default_factory=ESConfig)
+    whiten_k: int | None = None  # if set, project the memory state onto its top-k whitened axes
 
 
 def build(cls: type[T], data: dict[str, Any]) -> T:
