@@ -77,7 +77,7 @@ def main() -> None:
 
     agent_ret, frames, _ = rollout(env, enc, memory(), q.act, 10**7, args.max_steps, capture=True)
     rng = np.random.default_rng(args.seed)
-    rand_ret, _, _ = evaluate(
+    rand_ret, _ = evaluate(
         env,
         enc,
         memory(),
