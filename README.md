@@ -1,10 +1,26 @@
-# doom-esn — how little memory does a Doom agent need?
+<h3 align="center">Vrinda</h3>
 
-A CPU-only agent that learns to play [ViZDoom](https://github.com/Farama-Foundation/ViZDoom),
+<h1 align="center">doom-esn</h1>
+
+<p align="center"><i>how little memory does a Doom agent need?</i></p>
+
+<p align="center">
+A CPU-only agent that learns to play <a href="https://github.com/Farama-Foundation/ViZDoom">ViZDoom</a>,
 and a measured study of one question:
+</p>
 
-> **Given a fixed budget of `B` bytes of resident memory, how should the agent store its
-> past so that it still plays well?**
+<p align="center">
+<b>Given a fixed budget of <code>B</code> bytes of resident memory, how should the agent store its past so that it still plays well?</b>
+</p>
+
+<p align="center">
+<a href="mailto:salujavrinda018@gmail.com">salujavrinda018@gmail.com</a> ·
+<a href="https://www.linkedin.com/in/vrinda-saluja-rl/">LinkedIn</a>
+</p>
+
+<p align="center">
+<img src="assets/agent_plays_takecover.gif" alt="the agent playing TakeCover" width="480">
+</p>
 
 The short answer this repo delivers: the **return-vs-bytes curve is almost flat**. On
 `VizdoomTakeCover` a **48-byte** memory state matches a 1600-byte reservoir and a 9216-byte
@@ -12,11 +28,6 @@ frame window, and even a **1-byte** codeword stays in the same band. The honest 
 up front: on this scenario a **uniform-random policy is a strong baseline** (~246 return), so
 the result is about the **compression curve**, not about crushing random. The maths is cheap;
 memory is precious.
-
-**Author:** Vrinda Saluja — [vrindaml539@gmail.com](mailto:vrindaml539@gmail.com) ·
-[LinkedIn](https://www.linkedin.com/in/vrinda-saluja-rl/)
-
-![the agent playing TakeCover](assets/agent_plays_takecover.gif)
 
 ---
 
