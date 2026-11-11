@@ -1,4 +1,4 @@
-<h3 align="center">Vrinda</h3>
+<h3 align="center"><a href="https://github.com/vrindasaluja18">Vrinda</a></h3>
 
 <h1 align="center">doom-esn</h1>
 
