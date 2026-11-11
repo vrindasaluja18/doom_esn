@@ -1,5 +1,3 @@
-<h3 align="center"><a href="https://github.com/vrindasaluja18">Vrinda</a></h3>
-
 <h1 align="center">doom-esn</h1>
 
 <p align="center"><i>how little memory does a Doom agent need?</i></p>
@@ -28,6 +26,28 @@ frame window, and even a **1-byte** codeword stays in the same band. The honest 
 up front: on this scenario a **uniform-random policy is a strong baseline** (~246 return), so
 the result is about the **compression curve**, not about crushing random. The maths is cheap;
 memory is precious.
+
+<details>
+<summary><b>Table of contents</b> &nbsp;<sub>(click to expand)</sub></summary>
+
+- [1. The question and why it is the right one](#1-the-question-and-why-it-is-the-right-one)
+- [2. Headline result](#2-headline-result)
+  - [2.1 A scenario that actually needs memory: My Way Home](#21-a-scenario-that-actually-needs-memory-my-way-home)
+  - [2.2 The fair null: is it memory or just nonlinearity?](#22-the-fair-null-is-it-memory-or-just-nonlinearity)
+- [3. Pipeline](#3-pipeline)
+  - [3.1 The past has its own embedding — and it is the research object](#31-the-past-has-its-own-embedding--and-it-is-the-research-object)
+  - [3.2 What is learned — and where the weights are](#32-what-is-learned--and-where-the-weights-are)
+- [4. RAM vs storage — what lives where, and why](#4-ram-vs-storage--what-lives-where-and-why)
+- [5. Where clustering fits (supported)](#5-where-clustering-fits-supported)
+- [6. Where Morse theory fits (refuted, and that is a result)](#6-where-morse-theory-fits-refuted-and-that-is-a-result)
+- [7. What the earlier runs established (and what changed)](#7-what-the-earlier-runs-established-and-what-changed)
+- [8. Run it](#8-run-it)
+- [9. Repository layout](#9-repository-layout)
+- [10. Limitations (read before citing anything)](#10-limitations-read-before-citing-anything)
+- [11. Engineering](#11-engineering)
+- [12. Contact](#12-contact)
+
+</details>
 
 ---
 
@@ -335,3 +355,9 @@ src layout, frozen dataclasses, strict YAML config (unknown keys rejected), seed
 checkpoints with `allow_pickle=False`. Every maths claim has a named test or a stored
 measurement (ledger in MATHS 9). The exact permutation / Holm decision machinery is vendored
 from the author's [credence](https://github.com/vrindasaluja18/credence) repo.
+
+## 12. Contact
+
+Questions, corrections, or a pull request you want reviewed? Reach me at
+[salujavrinda018@gmail.com](mailto:salujavrinda018@gmail.com) or on
+[LinkedIn](https://www.linkedin.com/in/vrinda-saluja-rl/).
