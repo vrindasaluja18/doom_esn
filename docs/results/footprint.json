@@ -1,0 +1,15 @@
+{
+  "scenario": "VizdoomTakeCover-v1",
+  "perception": "mobilenet",
+  "resident_state_bytes": 1600,
+  "encoder_weight_bytes": 3708032,
+  "readout_bytes": 300,
+  "codebook_fixed_bytes": 1028900,
+  "predicted_agent_bytes": 3709932,
+  "rss_before_kb": 28108,
+  "rss_after_build_kb": 383976,
+  "rss_after_build_mb": 375.0,
+  "storage_latents_bytes": 192128,
+  "storage_steps": 2000,
+  "storage_bytes_per_step": 96.06
+}

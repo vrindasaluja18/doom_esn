@@ -1,0 +1,26 @@
+{
+  "n": 1000,
+  "bits": 4,
+  "flip_rate": 0.095,
+  "degrade_mean": 0.9117857217788696,
+  "auc_flip": {
+    "T1_criticality": 0.3405408548996801,
+    "T2_morse_saddle": 0.32372782785693516,
+    "B1_margin_mag": 0.06637976155859261,
+    "B2_participation": 0.38406513521372493
+  },
+  "power_flip": {
+    "T1_criticality": 0.6594591451003199,
+    "T2_morse_saddle": 0.6762721721430649,
+    "B1_margin_mag": 0.9336202384414074,
+    "B2_participation": 0.615934864786275
+  },
+  "spearman_degrade": {
+    "T1_criticality": 0.04723895923895924,
+    "T2_morse_saddle": -0.035993363993363996,
+    "B1_margin_mag": -0.04003637203637204,
+    "B2_participation": -0.08639091839091839
+  },
+  "verdict": "topology does NOT beat baseline",
+  "scenario": "VizdoomTakeCover-v1"
+}
