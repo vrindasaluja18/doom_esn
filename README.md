@@ -56,9 +56,11 @@ Concretely, we ask three things and answer each with a measurement:
 
 Reading:
 
-- The curve is **flat**: the 48-byte state (265.7) sits at the top, the 1600-byte reservoir
-  (257.4) and the 4608-byte window (233.6) are within one standard error of it. The honest
-  claim is **"equal-or-better at 33× less resident state"**, *not* "quantisation helps".
+- The curve is **flat**: the 48-byte state (265.7) sits near the top, the 1600-byte reservoir
+  (257.4) and the 4608-byte window (233.6) are within one standard error of it, and even the
+  best arm overall (reservoir + tanh400, 279.2) is within one standard error of the 48-byte
+  state. The honest claim is **"equal-or-better at 33× less resident state"**, *not*
+  "quantisation helps".
 - **The random baseline is strong.** A true uniform-random policy returns **245.9 ± 19.7** on
   TakeCover. So the 48-byte state does **not** clearly beat random, and the 1-byte codebook
   (219) is *below* random. *(An earlier draft reported "random = 164.3"; that number came from a
@@ -72,9 +74,13 @@ Reading:
   both memories moves the window up (233.6 → 265.9) and the reservoir up (257.4 → 279.2): part
   of the "reservoir vs window" gap is nonlinearity, not memory. The reservoir still leads, but
   the margin shrinks.
-- On the pooled (non-pretrained) perception arm the same compression *hurts*
-  (`docs/results/memory/VizdoomDefendLine-v1.json`): the linear readout is more fragile when
-  the input features are weak. Compression quality depends on the encoder — reported, not hidden.
+- **The pooled (non-pretrained) arm shows no reliable effect.** On `DefendLine` with the pooled
+  `24x32` encoder every back-end sits near the random baseline (7.18 ± 0.41): the 1600-byte
+  reservoir returns 6.9 ± 0.8 and the 24-byte quantised state 11.1 ± 1.0, but the per-seed
+  spread (e.g. esn400 = [4.5, 4.9, 11.4]) is larger than any gap, so we do **not** claim
+  "compression helps" *or* "compression hurts" there. The honest statement: with a weak encoder
+  the linear readout has no signal to compress, on either side
+  (`docs/results/memory/VizdoomDefendLine-v1.json`). This is why the pretrained encoder matters.
 
 ### 2.1 A scenario that actually needs memory: My Way Home
 
@@ -300,8 +306,9 @@ tests/            43 tests, warnings as errors
 
 - Three seeds per cell; the 48-byte vs 1600-byte gap (265.7 vs 257.4) is within one standard
   error — the honest claim is **"equal-or-better at 33× less state"**, not "quantisation helps".
-- One perception model and three scenarios so far. Compression quality is encoder-dependent
-  (section 2), and `DefendLine` shows the failure mode.
+- One perception model and three scenarios so far. The pooled (non-pretrained) encoder is
+  **inconclusive** on `DefendLine` — every arm sits at the random baseline within noise
+  (section 2) — so the only place a compression signal appears is the pretrained arm.
 - The topology result is one field on one scenario; it is reported as a negative, not a theorem.
 - **The agent does not beat uniform random on TakeCover** (agent ~266, random ~246, inside one
   standard error). TakeCover is nearly solved by a 2-frame window, so it is a weak memory test;

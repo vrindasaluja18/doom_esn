@@ -92,28 +92,24 @@ frame (screen) ─▶ frozen encoder ─▶ memory back-end ─▶ fitted-Q read
 
 ## 4. The next experiments
 
-### P5 — the fair null (in progress)
+### P5 — the fair null (**done**)
 **Hypothesis.** "Window vs reservoir" is confounded: the window feeds a *linear* readout,
 the reservoir feeds random *nonlinear* features. Apply the same fixed random `tanh`
 projection to both and the difference is the memory mechanism alone.
-**Method.** Arms `window_k{2,4}_tanh400` and `esn400_tanh400` (same projection), already in
-the benchmark.
-**Falsifier.** If the window with the same nonlinearity matches the reservoir, the
-"reservoir wins" story is a nonlinearity story, not a memory story.
-**Deliverable.** Extra rows in `docs/results/memory/*.json` + a paragraph in the README.
+**Method.** Arms `window_k{2,4}_tanh400` and `esn400_tanh400` (same projection), in the benchmark.
+**Result.** The nonlinearity lifts *both* arms (window 233.6 → 265.9, reservoir 257.4 → 279.2),
+so part of the raw gap is nonlinearity, not memory; the reservoir still leads but by less than
+one standard error. **Deliverable:** rows in `docs/results/memory/VizdoomTakeCover-v1.json` +
+README §2.2.
 
-### P6 — a genuine memory scenario (My Way Home)
-**Hypothesis.** On a task where the reward depends on where the agent *was* (spatial memory),
-a 1-frame window must fail and the fading reservoir must win — a memory *result*, not just a
-memory *story*.
-**Method.** Window-k sweep `k ∈ {1,2,4,8}` and the reservoir on `VizdoomMyWayHome-v1`; report
-the return-vs-bytes curve for the scenario. (Sample Factory trains this scenario with
-`--use_rnn=True`, so a memoryless window is expected to underperform — we test it.)
-**Falsifier.** If window k=1 matches the reservoir, the scenario does not exercise memory.
-**Deliverable.** `docs/results/memory/VizdoomMyWayHome-v1_windowk.json` + figure panel.
-**Caveat to state in the writeup.** My Way Home's absolute score is dominated by whether the
-agent finds the goal at all; we report it as a *relative* memory comparison, not as a
-leaderboard entry.
+### P6 — a genuine memory scenario (My Way Home) (**done — negative**)
+**Hypothesis.** On a task where the reward depends on where the agent *was*, a 1-frame window
+must fail and the fading reservoir must win.
+**Method.** Window-k sweep `k ∈ {1,4,8}` on `VizdoomMyWayHome-v1`.
+**Result.** All arms return ~0 (k=1 −0.21, k=4 −0.07, k=8 −0.16): with the frozen encoder and a
+linear readout the agent does **not** learn the task, so the scenario does not exercise memory.
+Reported as a limitation, not a win. **Deliverable:**
+`docs/results/memory/VizdoomMyWayHome-v1_windowk.json` + README §2.1.
 
 ### P7 — spend bits where they matter
 **Hypothesis.** The readout margin (|Q margin|) predicts which states need precision (Q2

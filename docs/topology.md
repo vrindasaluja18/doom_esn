@@ -8,8 +8,9 @@ The two questions and their falsifiers were fixed before the experiments ran
 
 - **Clustering (codebook): supported as a memory mechanism, with a caveat.**
   Storing a 1-byte codeword index instead of the latent keeps most of the return on the
-  pretrained-perception arm (see the return-vs-bytes table), but it is *brittle* on the
-  frozen pooled encoder. The codebook is a rate-distortion device: fixed table cost buys a
+  pretrained-perception arm (see the return-vs-bytes table). On the frozen pooled encoder the
+  effect is *unreliable*: every arm sits near the random baseline within noise, in both
+  directions across runs. The codebook is a rate-distortion device: fixed table cost buys a
   small resident state.
 - **Morse / topological diagnostics: refuted as a precision allocator.**
   The trivial scalar-field feature (the Q margin) predicts which states need precision far
@@ -27,9 +28,11 @@ The two questions and their falsifiers were fixed before the experiments ran
 - Result: measured return by resident state bytes (VizdoomTakeCover-v1, pretrained
   perception, 3 seeds) is in `docs/results/return_vs_bytes.png`. Headline: the codebook
   trades a ~1 MB fixed table for a 1-byte resident state and retains a large fraction of the
-  full-state return on this scenario, whereas the same idea on the pooled encoder collapses.
-- Verdict: supported as a mechanism, but the trade is encoder-dependent; report the fixed
-  cost explicitly (it is not free).
+  full-state return on this scenario. On the pooled encoder the comparison is inconclusive:
+  every back-end lands within noise of the random baseline (DefendLine random 7.18 ± 0.41),
+  and the ordering is not stable across seeds, so no directional claim is made there.
+- Verdict: supported as a mechanism on the pretrained arm; the trade is encoder-dependent and
+  the fixed cost must be reported explicitly (it is not free).
 
 ## Question 2: Morse / persistent homology
 
