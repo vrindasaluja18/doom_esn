@@ -80,8 +80,8 @@ def plot_capacity(out: Path) -> None:
         # a few representative arms: raw vs whitened vs quantised reservoir, and windows
         keep = [
             "esn400",
-            "esn400_white24",
-            "esn400_q8_24",
+            "esn400_white48",
+            "esn400_q8_48",
             "esn400_vq256",
             "win_white_k2",
             "win_white_k8",

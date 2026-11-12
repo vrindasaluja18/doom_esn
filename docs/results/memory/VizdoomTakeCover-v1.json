@@ -90,7 +90,7 @@
     "paired_vs_const": 94.94999694824219
   },
   {
-    "backend": "esn400_white24",
+    "backend": "esn400_white48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 0,
     "state_bytes": 1600,
@@ -108,7 +108,7 @@
     "paired_vs_const": 118.1500015258789
   },
   {
-    "backend": "esn400_white24",
+    "backend": "esn400_white48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 1,
     "state_bytes": 1600,
@@ -126,7 +126,7 @@
     "paired_vs_const": 127.5999984741211
   },
   {
-    "backend": "esn400_white24",
+    "backend": "esn400_white48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 2,
     "state_bytes": 1600,
@@ -144,7 +144,7 @@
     "paired_vs_const": 70.1500015258789
   },
   {
-    "backend": "esn400_q8_24",
+    "backend": "esn400_q8_48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 0,
     "state_bytes": 48,
@@ -162,7 +162,7 @@
     "paired_vs_const": 99.30000305175781
   },
   {
-    "backend": "esn400_q8_24",
+    "backend": "esn400_q8_48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 1,
     "state_bytes": 48,
@@ -180,7 +180,7 @@
     "paired_vs_const": 64.19999694824219
   },
   {
-    "backend": "esn400_q8_24",
+    "backend": "esn400_q8_48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 2,
     "state_bytes": 48,
@@ -198,7 +198,7 @@
     "paired_vs_const": 81.69999694824219
   },
   {
-    "backend": "esn400_q16_24",
+    "backend": "esn400_q16_48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 0,
     "state_bytes": 96,
@@ -216,7 +216,7 @@
     "paired_vs_const": 110.69999694824219
   },
   {
-    "backend": "esn400_q16_24",
+    "backend": "esn400_q16_48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 1,
     "state_bytes": 96,
@@ -234,7 +234,7 @@
     "paired_vs_const": 41.150001525878906
   },
   {
-    "backend": "esn400_q16_24",
+    "backend": "esn400_q16_48",
     "scenario": "VizdoomTakeCover-v1",
     "seed": 2,
     "state_bytes": 96,

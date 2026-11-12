@@ -90,9 +90,9 @@ def build_backends(
 
     backends: dict[str, Callable[[], Any]] = {
         "esn400": res,
-        "esn400_white24": lambda: ProjectedMemory(res(), whitener),
-        "esn400_q8_24": lambda: QuantizedLatent(res(), whitener, clip=3.0, bits=8),
-        "esn400_q16_24": lambda: QuantizedLatent(res(), whitener, clip=3.0, bits=16),
+        "esn400_white48": lambda: ProjectedMemory(res(), whitener),
+        "esn400_q8_48": lambda: QuantizedLatent(res(), whitener, clip=3.0, bits=8),
+        "esn400_q16_48": lambda: QuantizedLatent(res(), whitener, clip=3.0, bits=16),
         "esn400_vq256": lambda: CodebookMemory(res(), whitener, codebook),
         # fair null: same fixed random nonlinearity on both memories, so "window vs
         # reservoir" compares the memory mechanism, not linear-vs-nonlinear features.

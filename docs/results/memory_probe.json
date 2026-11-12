@@ -16,7 +16,7 @@
     "r2_far": -0.289
   },
   {
-    "backend": "esn400_white24",
+    "backend": "esn400_white48",
     "scenario": "VizdoomTakeCover-v1",
     "state_bytes": 1600,
     "fixed_bytes": 8440196,
@@ -32,7 +32,7 @@
     "r2_far": 0.0216
   },
   {
-    "backend": "esn400_q8_24",
+    "backend": "esn400_q8_48",
     "scenario": "VizdoomTakeCover-v1",
     "state_bytes": 48,
     "fixed_bytes": 8440196,
@@ -48,7 +48,7 @@
     "r2_far": 0.0215
   },
   {
-    "backend": "esn400_q16_24",
+    "backend": "esn400_q16_48",
     "scenario": "VizdoomTakeCover-v1",
     "state_bytes": 96,
     "fixed_bytes": 8440196,

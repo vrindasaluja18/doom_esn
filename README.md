@@ -20,20 +20,24 @@ and a measured study of one question:
 <img src="assets/agent_plays_takecover.gif" alt="the agent playing TakeCover" width="480">
 </p>
 
-The short answer this repo delivers: the **return-vs-bytes curve is almost flat**. On
-`VizdoomTakeCover` a **48-byte** memory state matches a 1600-byte reservoir and a 9216-byte
-frame window, and even a **1-byte** codeword stays in the same band. The honest caveat, stated
-up front: on this scenario a **uniform-random policy is a strong baseline** (~246 return), so
-the result is about the **compression curve**, not about crushing random. The maths is cheap;
-memory is precious.
+The short answer: on `VizdoomTakeCover` a **384-byte** state of two frames matches anything we
+tried, and the 1600-byte reservoir does no better than a **uniform-random policy** (244). Once a
+memory works, shrinking it is nearly free: an 8-bit state of **48 bytes** matches the raw
+reservoir's return (237 vs 238) and the whitened reservoir's measured memory (R² 0.180 vs 0.181),
+so 48 bytes buys what 1600 bytes does. A 1-byte codebook is where the capacity finally drops. The
+caveat matters as much as the result: TakeCover rewards reacting to the current frame, so a short
+delay line carries the whole signal and a recurrent state buys nothing. What this repo actually
+contributes is the **method**: a shared-latent benchmark that fits every memory in seconds, and a
+probe that measures memory directly instead of inferring it from noisy return.
 
 <details>
 <summary><b>Table of contents</b> &nbsp;<sub>(click to expand)</sub></summary>
 
 - [1. The question and why it is the right one](#1-the-question-and-why-it-is-the-right-one)
 - [2. Headline result](#2-headline-result)
-  - [2.1 A scenario that actually needs memory: My Way Home](#21-a-scenario-that-actually-needs-memory-my-way-home)
+  - [2.1 A scenario that needs memory: My Way Home (and why it is still a null)](#21-a-scenario-that-needs-memory-my-way-home-and-why-it-is-still-a-null)
   - [2.2 The fair null: is it memory or just nonlinearity?](#22-the-fair-null-is-it-memory-or-just-nonlinearity)
+  - [2.3 Measuring memory directly: the delay-memory probe](#23-measuring-memory-directly-the-delay-memory-probe)
 - [3. Pipeline](#3-pipeline)
   - [3.1 The past has its own embedding — and it is the research object](#31-the-past-has-its-own-embedding--and-it-is-the-research-object)
   - [3.2 What is learned — and where the weights are](#32-what-is-learned--and-where-the-weights-are)
@@ -78,12 +82,14 @@ paired against the random baseline on the *same* episodes
 | *random policy (reference)* | — | — | — | *244.2 ± 22.0* | — |
 | *best fixed action* | — | — | — | *155.4 ± 5.4* | — |
 | codebook k=256 on ESN | **1 B** | 8.5 MB | 588 B | 251.9 ± 12.6 | +7.6 |
-| 8-bit × 24 on ESN | 48 B | 8.4 MB | 588 B | 237.1 ± 14.2 | −7.1 |
+| 8-bit × 48 on ESN | 48 B | 8.4 MB | 588 B | 237.1 ± 14.2 | −7.1 |
 | window k=1 (memoryless) | 192 B | 1.0 MB | 588 B | 283.1 ± 17.6 | +38.9 |
 | **window k=2** | **384 B** | 1.0 MB | 1.2 KB | **308.2 ± 21.0** | **+64.0** |
+| 8-bit window k=8 | 384 B | 1.0 MB | 4.6 KB | 274.6 ± 17.2 | +30.4 |
 | window k=4 | 768 B | 1.0 MB | 2.3 KB | 294.0 ± 18.5 | +49.8 |
 | window k=8 | 1536 B | 1.0 MB | 4.6 KB | 239.4 ± 12.9 | −4.8 |
 | ESN 400 (float32) | 1600 B | 8.4 MB | 4812 B | 237.7 ± 12.0 | −6.5 |
+| ESN 400 → whitened 48 | 1600 B | 8.4 MB | 588 B | 260.7 ± 18.4 | +16.5 |
 | ESN 400 + tanh400 (fair null) | 1600 B | 9.0 MB | 4812 B | 238.5 ± 14.1 | −5.7 |
 
 Reading:
@@ -98,17 +104,18 @@ Reading:
 - **The random baseline is strong.** A uniform-random policy returns 244.2 ± 22.0 on TakeCover,
   so a good fraction of every arm's return is the scenario being partly solvable by reflex.
   TakeCover is a **weak** memory test — which is why section 2.1 adds a scenario that needs memory.
-- **Quantisation is cheap here.** The 1-byte codebook (251.9) and the 48-byte 8-bit state
-  (237.1) are within one standard error of the float32 reservoir, so compressing the state
-  ~1600× costs nothing measurable — but it also *buys* nothing, since the reservoir itself is
-  at baseline. The cost is *moved*, not removed: the quantiser pays a fixed ~8 MB
-  whitener/codebook table, exactly the RAM-vs-storage trade in section 4.
+- **Quantisation is nearly free; codebooking is not.** The 48-byte 8-bit state keeps the
+  whitened reservoir's measured memory *exactly* (R² 0.180 vs 0.181) and its return within noise
+  (237.1 vs 260.7 across 3 seeds), so 48 bytes buys what 1600 bytes does. The 1-byte codebook
+  keeps the task (251.9) but halves the memory (R² 0.098), which is the first place a byte budget
+  visibly costs capacity. Neither is free in RAM, though: both pay a fixed ~8 MB whitener/codebook
+  table, exactly the RAM-vs-storage trade in section 4.
 - **Fair null (section 2.2).** Applying the *same* fixed random nonlinearity (`tanh400`) to the
   reservoir does not help it (237.7 → 238.5), so the reservoir's null result is not an artifact
   of a linear readout.
 - **The pooled (non-pretrained) arm shows a small real effect.** On `DefendLine` with the pooled
-  `24x32` encoder the window k=1 (11.3 ± 0.9) and the 48-byte quantised ESN state (11.1 ± 1.0)
-  both sit ~3 SE above random (7.7 ± 0.9), while the float32 reservoir (5.6 ± 0.6) is *below*
+  `24x32` encoder the window k=1 (11.3 ± 0.5) and the 48-byte quantised ESN state (11.1 ± 0.6)
+  both sit ~3 SE above random (7.7 ± 0.9), while the float32 reservoir (5.6 ± 0.4) is *below*
   random — a solved linear readout on a 1600-d random reservoir overfits on this little data
   (`docs/results/memory/VizdoomDefendLine-v1.json`). This is why the pretrained encoder and the
   small state matter.
@@ -132,7 +139,7 @@ pooled `24x32` encoder (`docs/results/memory/VizdoomMyWayHome-v1.json`):
 | *random* | — | *−0.094 ± 0.078* | — |
 | window k=8 | 1536 | −0.153 ± 0.032 | 0.509 |
 | window k=2 | 384 | −0.171 ± 0.027 | 0.206 |
-| ESN → 8-bit × 24 | 48 | −0.173 ± 0.025 | 0.075 |
+| ESN → 8-bit × 48 | 48 | −0.173 ± 0.025 | 0.075 |
 | ESN 400 | 1600 | −0.170 ± 0.027 | 0.060 |
 
 Reading: **negative and flat on return** — no arm beats the random baseline (−0.094) by more
@@ -179,8 +186,8 @@ takes seconds per arm (`bench/memory_probe.py`, `docs/results/memory_probe.json`
 | window k=4 | 768 | 1.00 | 1.00 | 0.30 | 0.06 | 0.455 |
 | window k=2 | 384 | 1.00 | 0.31 | 0.15 | 0.05 | 0.297 |
 | window k=1 | 192 | 0.31 | 0.21 | 0.11 | 0.06 | 0.135 |
-| ESN → whitened 24 | 1600 | 0.41 | 0.29 | 0.16 | 0.06 | 0.181 |
-| ESN → 8-bit × 24 | **48** | 0.41 | 0.29 | 0.16 | 0.06 | 0.180 |
+| ESN → whitened 48 | 1600 | 0.41 | 0.29 | 0.16 | 0.06 | 0.181 |
+| ESN → 8-bit × 48 | **48** | 0.41 | 0.29 | 0.16 | 0.06 | 0.180 |
 | ESN → codebook k=256 | **1** | 0.23 | 0.17 | 0.09 | 0.02 | 0.098 |
 | ESN 400 (float32) | 1600 | 0.41 | 0.23 | −0.01 | −0.20 | 0.011 |
 | ESN 400 + tanh400 | 1600 | 0.41 | 0.20 | −0.02 | −0.19 | 0.007 |
@@ -192,10 +199,10 @@ This resolves the ambiguity the return curve could not:
   perfectly. So the reservoir's null return is *not* a measurement artifact — its state simply
   does not hold the past. A random reservoir is a poor memory here; a delay line is a good one.
 - **Projection is what makes the reservoir a usable memory.** Whitening the reservoir state
-  (1600 B → 24 axes) *raises* its far-delay R² (mean 0.011 → 0.181), i.e. the useful memory is in
+  (1600 B → 48 axes) *raises* its far-delay R² (mean 0.011 → 0.181), i.e. the useful memory is in
   a low-dimensional subspace a linear readout cannot find unaided. That is the real role of the
   whitener: not compression, but **extraction**.
-- **Quantisation is nearly free, but codebooking is not.** 8-bit × 24 keeps the whitened
+- **Quantisation is nearly free, but codebooking is not.** 8-bit × 48 keeps the whitened
   reservoir's R² exactly (0.180 vs 0.181) at 48 B — 33× smaller. The 1-byte codebook loses about
   half the memory (0.098), so 1 byte *does* cost real capacity.
 - **The two measurements agree.** The arm with the best measured memory (window k=8, mean R²
@@ -212,10 +219,10 @@ This resolves the ambiguity the return curve could not:
 ```
 ViZDoom frame (240x320x3)
   └─ perception        frozen pretrained MobileNetV3-Small, 96px, ImageNet weights
-     └─ z_t           576-d latent, ~3.8 ms/frame, never trained here
+     └─ z_t           5184-d latent (576 channels x 3x3 grid), ~4 ms/frame, never trained
         └─ memory      the research object, budget B bytes
            │           representation: window | ESN | whitened | quantised | codebook
-           │           the whitener projects 576-d -> 24-d (fixed table)
+           │           whitening projects 5184-d -> 48 axes per frame (fixed table)
            └─ readout  linear fitted-Q, solved by least squares (no CMA-ES search)
               └─ action
         record (z_t, a_t, r_t, done_t) -> storage
@@ -234,18 +241,25 @@ Two deliberate choices keep the experiment clean:
 There are **two embeddings**, and only the second is what we study:
 
 1. **Per-frame embedding (spatial).** `perception.py` maps one screen, `240x320x3`, to a
-   `z_t` in `R^576`. This embeds a *single moment*, not the past.
+   `z_t` in `R^5184` (a `3x3` spatial grid of 576-d features). This embeds a *single moment*,
+   not the past. The spatial grid is not cosmetic: `grid=1` (global pooling) is spatially blind
+   and the readout cannot beat random with it.
 2. **Past embedding (temporal).** The memory back-end turns the history `z_<=t` into a
    fixed-size state `s_t`. This *is* the embedding of the past, and it is the budgeted
    quantity `B`. Every back-end is a different way to embed the past:
 
-   | back-end | how it embeds the past | resident state |
-   |---|---|---|
-   | `WindowMemory(k)` | stack the last `k` latents — a Takens delay embedding | `k*d` floats |
-   | `ReservoirMemory` | random recurrence `x_t = f(W x_{t-1} + W_in z_t)` — a fading memory of the whole past | 400 floats |
-   | `ProjectedMemory` / whitener | project the reservoir state onto 24 whitened axes | 400 floats (projection fixed) |
-   | `QuantizedLatent` | the whitened past embedding, quantised to 8/16 bits per axis | 24 ints |
-   | `CodebookMemory` | replace the whitened past embedding by its nearest codeword index | 1 index |
+   | back-end | how it embeds the past | resident state | fixed table |
+   |---|---|---:|---:|
+   | `WindowMemory(k)` | stack the last `k` latents — a Takens delay embedding | `k*d` floats | 0 |
+   | `ReservoirMemory` | random recurrence `x_t = f(W x_{t-1} + W_in z_t)` — a fading memory of the whole past | 1600 B | 8.4 MB |
+   | `ProjectedMemory` / whitener | project the reservoir state onto 48 whitened axes | 1600 B | 8.4 MB |
+   | `QuantizedLatent` | the whitened past embedding, quantised to 8/16 bits per axis | 48 / 96 B | 8.4 MB |
+   | `CodebookMemory` | replace the whitened past embedding by its nearest codeword index | 1 B | 8.5 MB |
+   | `WhitenedWindow(k)` | the last `k` latents, each projected to 48 axes | `48*k*4` B | 1.0 MB |
+
+   The reservoir's fixed table is large because its random input matrix is `400 x 5184`; the
+   whitened window only needs a `5184 x 48` projection. That is the RAM-vs-storage trade again
+   (section 4): a big fixed table buys a small resident state.
 
 The memory state is **recurrent**: `step()` updates `s_t` in place, it is not recomputed from
 scratch. In belief-state terms `s_t` is the *sufficient statistic of the past* — the belief
@@ -260,10 +274,10 @@ varies across the headline table is the past embedding:
 | component | learned? | how | size |
 |---|---|---|---|
 | perception (MobileNetV3-Small) | **no** — frozen ImageNet | downloaded | 3.7 MB (fixed) |
-| reservoir matrix `W, W_in` | **no** — fixed random (seeded) | built once | ~0.99 MB (fixed) |
-| whitener (`mu, V, sigma`) | fitted once on a random-policy probe, then frozen | PCA / whitening | ~1 MB (fixed) |
-| codebook (`k x 24`) | fitted once on the probe, then frozen | k-means | (fixed) |
-| **readout `W` (`LinearQ`)** | **yes — the only weights RL trains** | fitted Q-iteration (ridge least squares) | 300–27,660 B |
+| reservoir `W, W_in` (400 x 5184 input) | **no** — fixed random (seeded) | built once | 8.4 MB (fixed) |
+| whitener (`mu, V, sigma`) | fitted once on a random-policy probe, then frozen | PCA / whitening | 1.0 MB (fixed) |
+| codebook (`256 x 48`) | fitted once on the probe, then frozen | k-means | 24 KB (fixed) |
+| **readout `W` (`LinearQ`)** | **yes — the only weights RL trains** | fitted Q-iteration (ridge least squares) | 588–4812 B |
 | memory state `s_t` | not weights — the *activations* | updated every step | `B` (budgeted) |
 
 So "learning" here is a **closed-form solve, not a search**: `readout.py` fits
@@ -286,10 +300,15 @@ batches or rarely.** The budgeted quantity `B` is the resident state. Measured o
 |---|---|---|---|
 | perception weights (frozen) | **RAM** | used every frame | 3.7 MB (float32) |
 | **memory state `s_t`** | **RAM** | updated every frame — **this is `B`** | **1600 B** |
-| readout weights | **RAM** | tiny, every frame | 300 B |
-| whitener / codebook table | **RAM** | fixed, read every step | ~1.0 MB |
+| readout weights | **RAM** | tiny, every frame | 588–4812 B |
+| whitener table (window arms) | **RAM** | fixed, read every step | 1.0 MB |
+| reservoir `W, W_in` + whitener (reservoir arms) | **RAM** | fixed, read every step | 8.4 MB |
 | recorded latent dataset | **storage** | written once, read in batches | 96 B/step |
 | checkpoints, metrics | **storage** | append-only | — |
+
+The reservoir's 8.4 MB table is the whole point of the trade: it is a `400 x 5184` random input
+matrix plus the `400 x 48` whitener, and it is what lets the resident state stay at 1600 B. The
+window arms get the same resident size from a much cheaper `5184 x 48` projection.
 
 Process RSS after building the agent is **375 MB**, dominated by the Python interpreter and
 the torch runtime — *not* by the agent's memory state (1600 B). The model predicts the memory
@@ -299,10 +318,12 @@ placement; the measurement confirms it.
 
 A codebook turns a continuous latent into a discrete **memory slot**: store the cluster index
 (1 byte for `k ≤ 256`) instead of the latent (`d×4` bytes). This is a rate–distortion device,
-and it is measured, not assumed: the `k=256` codebook keeps 219/257 of the full-state return
-using a 1-byte resident state — *but* 219 is **below** the uniform-random baseline (~246), so
-the honest verdict is "the codebook preserves most of the *full-state* return", not "it plays
-well". See `src/doom_esn/memory.py` (`CodebookMemory`).
+and it is measured rather than assumed. The `k=256` codebook returns 251.9 (random 244.2) at a
+1-byte resident state, so it preserves the full reservoir's return (237.7) within noise. It does
+not preserve the full *memory*: the probe (section 2.3) shows the codebook decodes the past at
+mean R² 0.098 against the whitened reservoir's 0.181, roughly half the capacity. The honest
+verdict is "1 byte keeps the task, not the memory" — the capacity loss is real, but this task
+does not need that capacity. See `src/doom_esn/memory.py` (`CodebookMemory`).
 
 ## 6. Where Morse theory fits (refuted, and that is a result)
 
@@ -334,7 +355,7 @@ nothing statistically distinguishable. The honest reading of that data:
   scenarios (`TakeCover`, `DefendLine`, `MyWayHome`) — never `Basic`.
 - **The corrected random baseline.** The originally committed `scripts/play.py` re-seeded its
   RNG every step, so its "random" policy was a single constant action (return 164.3). Fixed to
-  one generator per evaluation; the true uniform-random return is **245.9 ± 19.7**. This is the
+  one generator per evaluation; the true uniform-random return is **244.2 ± 22.0**. This is the
   single most important correction in the repo: it moves the honest headline from "beats random"
   to "flat compression curve" (`docs/PLAN.md` §2 and §6).
 - The detailed maths (derived / tested / measured / unverified tags) is in
@@ -346,31 +367,37 @@ nothing statistically distinguishable. The honest reading of that data:
 
 ```bash
 pip install -e ".[dev,doom,perception,bench]"   # CPU only (bench = matplotlib + ripser)
-make check                                       # ruff + mypy + pytest (43 tests)
+make check                                       # ruff + mypy + pytest (47 tests)
 
-# 1. the headline curve (return vs resident bytes) — the full back-end set, incl. fair-null
+# 1. the headline curve (return vs resident bytes): collect latents once, fit every arm offline
 python bench/memory_budget.py --scenario VizdoomTakeCover-v1 --perception mobilenet \
-    --seeds 3 --rounds 3 --collect-episodes 40 --eval-episodes 20
-python bench/plot.py                             # -> docs/results/return_vs_bytes.png
+    --seeds 3 --collect-episodes 40 --eval-episodes 20 --resume
 
-# 1b. the memory-stress scenario (window-k sweep) and the pooled (non-pretrained) arm
-python bench/memory_budget.py --scenario VizdoomMyWayHome-v1 --perception mobilenet \
-    --window-ks 1 4 8 --only window --seeds 2 --rounds 2 --tag _windowk
-python bench/memory_budget.py --scenario VizdoomDefendLine-v1 --perception pool \
-    --seeds 3 --rounds 3
+# 1b. the memory-stress scenarios (MyWayHome is slow; the pooled encoder is enough there)
+python bench/memory_budget.py --scenario VizdoomDefendLine-v1 --perception pool --resume
+python bench/memory_budget.py --scenario VizdoomMyWayHome-v1 --perception pool --resume
 
-# 2. train the agent and record it playing
+# 2. measure the memory directly (held-out R^2 of decoding the past k frames back)
+python bench/memory_probe.py --scenario VizdoomTakeCover-v1 --perception mobilenet --grid 3
+
+# 3. figures
+python bench/plot.py    # -> docs/results/return_vs_bytes.png, docs/results/memory_capacity.png
+
+# 4. train the agent and record it playing
 python scripts/play.py --scenario VizdoomTakeCover-v1 --perception mobilenet \
     --rounds 4 --episodes-per-round 40 --eval-episodes 30 \
     --out-gif assets/agent_plays_takecover.gif
 
-# 3. the topology falsifier and the memory footprint check
+# 5. the topology falsifier and the memory footprint check
 python scripts/topology_probe.py --scenario VizdoomTakeCover-v1 --perception mobilenet --bits 4
 python scripts/memory_footprint.py --scenario VizdoomTakeCover-v1 --perception mobilenet
 ```
 
-Everything runs headless on CPU. The pretrained perception arm downloads MobileNetV3-Small
-weights from PyTorch once (~10 MB) and never trains them.
+The benchmark is resumable: it caches one latent dataset per seed under `docs/results/latents/`
+and writes one row per `(back-end, seed)` to `docs/results/memory/<scenario>.jsonl`, so `--resume`
+skips finished rows instead of redoing them. Re-run `bench/plot.py` after any grid to refresh the
+figures. Everything runs headless on CPU; the pretrained arm downloads MobileNetV3-Small weights
+from PyTorch once (~10 MB) and never trains them.
 
 ## 9. Repository layout
 
@@ -385,26 +412,30 @@ src/doom_esn/
   calibrate.py    data-only reservoir health criteria
   dynamics.py     fixed points, saddles, stability disc
   pipeline.py, cli.py, config.py, envs.py, es.py, policy.py
-bench/            memory_budget.py, plot.py
+bench/            memory_budget.py (collect-once + resume), memory_probe.py, plot.py
 scripts/          play.py, topology_probe.py, memory_footprint.py, compare.py, data_shape.py
 docs/             MATHS.md, ANALYSIS_PLAN.md, RESEARCH_PROGRAM.md, topology.md, results/
-tests/            43 tests, warnings as errors
-.agents/agents/   topology-scout.md  (a file-based research sub-agent)
+tests/            47 tests, warnings as errors
+.agents/agents/   bench-runner.md, topology-scout.md  (file-based research sub-agents)
 ```
 
 ## 10. Limitations (read before citing anything)
 
-- Three seeds per cell; the 48-byte vs 1600-byte gap (265.7 vs 257.4) is within one standard
-  error — the honest claim is **"equal-or-better at 33× less state"**, not "quantisation helps".
+- Three seeds per cell. On TakeCover the best arm (a 384-byte window, 308.2) beats the
+  1600-byte reservoir (237.7) clearly, but its *paired* edge over random (+64) is only ~1.7
+  standard errors — so the honest claim is **"equal-or-better at 4× less state"**, not "the
+  window beats random".
 - One perception model and three scenarios so far. The pooled (non-pretrained) encoder is
-  **inconclusive** on `DefendLine` — every arm sits at the random baseline within noise
-  (section 2) — so the only place a compression signal appears is the pretrained arm.
+  **inconclusive** on `DefendLine` — every arm sits within noise of the random baseline (7.7) —
+  so the only place a clean compression signal appears is the pretrained arm.
 - The topology result is one field on one scenario; it is reported as a negative, not a theorem.
-- **The agent does not beat uniform random on TakeCover** (agent ~266, random ~246, inside one
-  standard error). TakeCover is nearly solved by a 2-frame window, so it is a weak memory test;
-  the point is the *memory curve*, not a leaderboard score.
-- **My Way Home did not work**: the agent fails to learn it (returns ~0), so the scenario meant
-  to isolate memory does not yet do so (section 2.1).
+- **The reservoir does not beat uniform random on TakeCover** (agent 237.7, random 244.2, inside
+  one standard error). TakeCover is nearly solved by a short delay line, so it is a weak memory
+  test; the point is the *memory curve*, not a leaderboard score.
+- **My Way Home did not learn**: returns hover at 0 for every arm (best −0.076 vs random −0.094).
+  The probe shows this is a perception bottleneck, not a memory one — the pooled latent is barely
+  self-predictable (section 2.1) — so a stronger encoder is the next step before the scenario can
+  carry a memory claim.
 - No `Basic` numbers: by design (section 7).
 
 ## 11. Engineering
