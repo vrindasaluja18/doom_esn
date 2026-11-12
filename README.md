@@ -120,23 +120,31 @@ Reading:
 > scenario, confounded arms by giving them different rollouts, and lost all results if the
 > process was killed. See `AGENTS.md` for the protocol and section 7 for the history.
 
-### 2.1 A scenario that actually needs memory: My Way Home
+### 2.1 A scenario that needs memory: My Way Home (and why it is still a null)
 
 TakeCover rewards reacting to the current frame, so memory barely matters. `VizdoomMyWayHome-v1`
-rewards *returning to where the agent started*, which is a genuine spatial-memory task. We sweep
-the frame window `k ∈ {1,4,8}` (`docs/results/memory/VizdoomMyWayHome-v1_windowk.json`):
+rewards *returning to where the agent started*, a genuine spatial-memory task. Full grid, 3 seeds,
+pooled `24x32` encoder (`docs/results/memory/VizdoomMyWayHome-v1.json`):
 
-| back-end | resident state | return |
-|---|---:|---:|
-| window k=1 (memoryless) | 2304 B | -0.210 ± 0.000 |
-| window k=4 | 9216 B | -0.068 ± 0.071 |
-| window k=8 | 18432 B | -0.162 ± 0.046 |
+| back-end | state B | return | R² mean (probe) |
+|---|---:|---:|---:|
+| window k=8 (8-bit) | 384 | −0.076 ± 0.047 | 0.495 |
+| *random* | — | *−0.094 ± 0.078* | — |
+| window k=8 | 1536 | −0.153 ± 0.032 | 0.509 |
+| window k=2 | 384 | −0.171 ± 0.027 | 0.206 |
+| ESN → 8-bit × 24 | 48 | −0.173 ± 0.025 | 0.075 |
+| ESN 400 | 1600 | −0.170 ± 0.027 | 0.060 |
 
-Reading: **negative and flat.** With the frozen encoder and a linear readout the agent does not
-learn the task (returns hover at ~0), so the scenario *fails to exercise* the memory effect we
-hoped to isolate. This is reported as a limitation, not dressed up: the sample-factory-style
-`--use_rnn` result does not reproduce with this readout/encoder, and a stronger readout or
-perception would be needed before My Way Home can carry a memory claim.
+Reading: **negative and flat on return** — no arm beats the random baseline (−0.094) by more
+than noise, so the scenario *fails to exercise* the memory→return link. But the delay-memory
+probe (section 2.3, `docs/results/memory_probe_mwh.json`) shows this is **not** a memory failure:
+the window k=8 stores 4 frames *perfectly* (R²=1.00 for k≤4). The failure is downstream — the
+pooled encoder's latent is barely self-predictable (the 1600-d reservoir decodes the current
+latent at only R²=0.30, versus 0.41 with the pretrained encoder on TakeCover) and the linear
+readout cannot map that latent to the sparse return. This is reported as a limitation, not dressed
+up: a stronger encoder or a shaped/sparse-reward readout would be needed before My Way Home can
+carry a memory claim. The honest statement is **"the memory is present; the perception is the
+bottleneck."**
 
 ### 2.2 The fair null: is it memory or just nonlinearity?
 
@@ -161,7 +169,8 @@ latents**, with a linear-probe test: for each delay `k`, fit a ridge readout fro
 state `s_t` to the whitened latent `k` frames earlier and report held-out `R²`. `R²(k)` is the
 *delay-memory capacity* — a memoryless arm can only decode `k=1`; an arm that keeps more of the
 past decodes larger `k`. It is a regression on a fixed dataset, so it has small error bars and
-takes seconds per arm (`bench/memory_probe.py`, `docs/results/memory_probe.json`):
+takes seconds per arm (`bench/memory_probe.py`, `docs/results/memory_probe.json`; figure
+[`docs/results/memory_capacity.png`](docs/results/memory_capacity.png)):
 
 | back-end | state B | R²(k=1) | R²(k=2) | R²(k=4) | R²(k=8) | mean |
 |---|---:|---:|---:|---:|---:|---:|

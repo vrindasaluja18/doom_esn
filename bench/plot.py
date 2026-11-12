@@ -23,7 +23,7 @@ def main() -> None:
     panels = [
         ("VizdoomTakeCover-v1", "VizdoomTakeCover-v1.json"),
         ("VizdoomDefendLine-v1", "VizdoomDefendLine-v1.json"),
-        ("MyWayHome (window-k)", "VizdoomMyWayHome-v1_windowk.json"),
+        ("VizdoomMyWayHome-v1", "VizdoomMyWayHome-v1.json"),
     ]
     fig, axes = plt.subplots(1, len(panels), figsize=(15.5, 4.2))
     for ax, (scenario, fname) in zip(axes, panels, strict=False):
@@ -64,6 +64,45 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out / "return_vs_bytes.png", dpi=140)
     print(f"\nwrote {args.out / 'return_vs_bytes.png'}")
+
+    plot_capacity(args.out)
+
+
+def plot_capacity(out: Path) -> None:
+    """Delay-memory capacity: held-out R^2 of decoding the latent k frames back."""
+    probes = [("TakeCover", "memory_probe.json"), ("MyWayHome", "memory_probe_mwh.json")]
+    probes = [(n, out / f) for n, f in probes if (out / f).exists()]
+    if not probes:
+        return
+    fig, axes = plt.subplots(1, len(probes), figsize=(6.0 * len(probes), 4.2), squeeze=False)
+    for ax, (name, path) in zip(axes[0], probes, strict=False):
+        rows = json.load(path.open())
+        # a few representative arms: raw vs whitened vs quantised reservoir, and windows
+        keep = [
+            "esn400",
+            "esn400_white24",
+            "esn400_q8_24",
+            "esn400_vq256",
+            "win_white_k2",
+            "win_white_k8",
+            "win_q8_k8",
+        ]
+        for r in rows:
+            if r["backend"] not in keep:
+                continue
+            ks = sorted(int(k) for k in r["r2"])
+            ys = [r["r2"][str(k)] for k in ks]
+            ax.plot(ks, ys, "o-", label=f"{r['backend']} ({r['state_bytes']}B)")
+        ax.axhline(0.0, color="k", lw=0.6, alpha=0.4)
+        ax.set_xscale("log", base=2)
+        ax.set_xlabel("delay k (frames back)")
+        ax.set_ylabel("held-out R²  (delay-memory capacity)")
+        ax.set_title(f"{name}: how much past each state keeps")
+        ax.legend(fontsize=6)
+        ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out / "memory_capacity.png", dpi=140)
+    print(f"wrote {out / 'memory_capacity.png'}")
 
 
 if __name__ == "__main__":

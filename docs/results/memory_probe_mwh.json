@@ -1,0 +1,223 @@
+[
+  {
+    "backend": "esn400",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 1600,
+    "fixed_bytes": 1296004,
+    "dim": 400,
+    "r2": {
+      "1": 0.2977,
+      "2": 0.1411,
+      "4": 0.0143,
+      "8": -0.0223,
+      "16": -0.0339,
+      "32": -0.0367
+    },
+    "r2_mean": 0.06,
+    "r2_far": -0.031
+  },
+  {
+    "backend": "esn400_white24",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 1600,
+    "fixed_bytes": 1374596,
+    "dim": 48,
+    "r2": {
+      "1": 0.2225,
+      "2": 0.1049,
+      "4": 0.052,
+      "8": 0.0339,
+      "16": 0.0293,
+      "32": 0.0258
+    },
+    "r2_mean": 0.0781,
+    "r2_far": 0.0296
+  },
+  {
+    "backend": "esn400_q8_24",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 48,
+    "fixed_bytes": 1374596,
+    "dim": 48,
+    "r2": {
+      "1": 0.2149,
+      "2": 0.1015,
+      "4": 0.0502,
+      "8": 0.0324,
+      "16": 0.0276,
+      "32": 0.0252
+    },
+    "r2_mean": 0.0753,
+    "r2_far": 0.0284
+  },
+  {
+    "backend": "esn400_q16_24",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 96,
+    "fixed_bytes": 1374596,
+    "dim": 48,
+    "r2": {
+      "1": 0.2149,
+      "2": 0.1015,
+      "4": 0.0502,
+      "8": 0.0324,
+      "16": 0.0276,
+      "32": 0.0252
+    },
+    "r2_mean": 0.0753,
+    "r2_far": 0.0284
+  },
+  {
+    "backend": "esn400_vq256",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 1,
+    "fixed_bytes": 1423748,
+    "dim": 48,
+    "r2": {
+      "1": 0.0339,
+      "2": 0.0113,
+      "4": 0.0012,
+      "8": -0.002,
+      "16": -0.0007,
+      "32": -0.0015
+    },
+    "r2_mean": 0.007,
+    "r2_far": -0.0014
+  },
+  {
+    "backend": "esn400_tanh400",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 1600,
+    "fixed_bytes": 1937604,
+    "dim": 400,
+    "r2": {
+      "1": 0.267,
+      "2": 0.118,
+      "4": 0.0183,
+      "8": -0.0145,
+      "16": -0.0229,
+      "32": -0.0241
+    },
+    "r2_mean": 0.057,
+    "r2_far": -0.0205
+  },
+  {
+    "backend": "win_white_k1",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 192,
+    "fixed_bytes": 150720,
+    "dim": 48,
+    "r2": {
+      "1": 0.1282,
+      "2": 0.0697,
+      "4": 0.047,
+      "8": 0.0321,
+      "16": 0.0277,
+      "32": 0.0227
+    },
+    "r2_mean": 0.0546,
+    "r2_far": 0.0275
+  },
+  {
+    "backend": "win_white_k2",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 384,
+    "fixed_bytes": 150720,
+    "dim": 96,
+    "r2": {
+      "1": 1.0,
+      "2": 0.1218,
+      "4": 0.0491,
+      "8": 0.0285,
+      "16": 0.0227,
+      "32": 0.0171
+    },
+    "r2_mean": 0.2065,
+    "r2_far": 0.0228
+  },
+  {
+    "backend": "win_white_k4",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 768,
+    "fixed_bytes": 150720,
+    "dim": 192,
+    "r2": {
+      "1": 1.0,
+      "2": 1.0,
+      "4": 0.1117,
+      "8": 0.0225,
+      "16": 0.0106,
+      "32": 0.0065
+    },
+    "r2_mean": 0.3585,
+    "r2_far": 0.0132
+  },
+  {
+    "backend": "win_white_k8",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 1536,
+    "fixed_bytes": 150720,
+    "dim": 384,
+    "r2": {
+      "1": 1.0,
+      "2": 1.0,
+      "4": 1.0,
+      "8": 0.0857,
+      "16": -0.0137,
+      "32": -0.0176
+    },
+    "r2_mean": 0.5091,
+    "r2_far": 0.0181
+  },
+  {
+    "backend": "win_q8_k8",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 384,
+    "fixed_bytes": 150720,
+    "dim": 384,
+    "r2": {
+      "1": 0.971,
+      "2": 0.971,
+      "4": 0.9711,
+      "8": 0.0859,
+      "16": -0.0123,
+      "32": -0.0159
+    },
+    "r2_mean": 0.4951,
+    "r2_far": 0.0192
+  },
+  {
+    "backend": "win_q16_k8",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 768,
+    "fixed_bytes": 150720,
+    "dim": 384,
+    "r2": {
+      "1": 0.9711,
+      "2": 0.971,
+      "4": 0.9711,
+      "8": 0.0859,
+      "16": -0.0124,
+      "32": -0.0159
+    },
+    "r2_mean": 0.4952,
+    "r2_far": 0.0192
+  },
+  {
+    "backend": "win_q8_k1",
+    "scenario": "VizdoomMyWayHome-v1",
+    "state_bytes": 48,
+    "fixed_bytes": 150720,
+    "dim": 48,
+    "r2": {
+      "1": 0.1242,
+      "2": 0.0671,
+      "4": 0.0455,
+      "8": 0.0307,
+      "16": 0.0261,
+      "32": 0.0214
+    },
+    "r2_mean": 0.0525,
+    "r2_far": 0.0261
+  }
+]
