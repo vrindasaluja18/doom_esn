@@ -170,6 +170,81 @@ class CodebookMemory:
         return self.cb[self._i].copy()
 
 
+class WhitenedWindow:
+    """A delay window built from *per-frame* whitened latents.
+
+    Each raw latent is projected to ``k`` whitened axes first, then the last ``frames``
+    projected frames are stacked. This is the fair equal-bytes null for the reservoir: with
+    ``k`` axes and ``frames`` frames the resident state is ``k*frames`` floats, so we can
+    match the reservoir's byte budget exactly and ask which *representation* is better at
+    the same number of bytes.
+    """
+
+    def __init__(self, d_in: int, k: int, frames: int, whitener: Whitener) -> None:
+        if frames < 1:
+            raise ValueError("frames must be >= 1")
+        self.d_in, self.frames, self.wh = d_in, frames, whitener
+        self.k = min(k, whitener.k)
+        self.dim = self.k * frames
+        self._buf = np.zeros((frames, self.k), np.float32)
+
+    def state_nbytes(self) -> int:
+        return self.dim * 4
+
+    def fixed_nbytes(self) -> int:
+        w = self.wh
+        return int(w.mean.size + w.V.size + w.scale.size) * 4
+
+    def reset(self) -> None:
+        self._buf[:] = 0.0
+
+    def step(self, u: F32) -> F32:
+        self._buf[1:] = self._buf[:-1]
+        self._buf[0] = self.wh(u)[: self.k]
+        return self._buf.ravel().copy()
+
+
+class QuantizedWindow:
+    """Like :class:`WhitenedWindow` but each axis is stored as an integer code.
+
+    The resident state is ``k*frames`` integers (8 or 16 bit), which lets a window match a
+    reservoir's byte budget at a *finer* temporal resolution. This is the quantised-latent
+    arm the program asks for: is it the number of bytes, or the representation, that matters?
+    """
+
+    def __init__(
+        self, d_in: int, k: int, frames: int, whitener: Whitener, bits: int = 8, clip: float = 3.0
+    ) -> None:
+        if bits not in (8, 16):
+            raise ValueError("bits must be 8 or 16")
+        if frames < 1:
+            raise ValueError("frames must be >= 1")
+        self.d_in, self.frames, self.wh, self.clip, self.bits = d_in, frames, whitener, clip, bits
+        self.k = min(k, whitener.k)
+        self.dim = self.k * frames
+        self.dtype = np.uint8 if bits == 8 else np.uint16
+        self.levels = float(2**bits - 1)
+        self._q = np.zeros((frames, self.k), self.dtype)
+
+    def state_nbytes(self) -> int:
+        return self.dim * np.dtype(self.dtype).itemsize
+
+    def fixed_nbytes(self) -> int:
+        w = self.wh
+        return int(w.mean.size + w.V.size + w.scale.size) * 4
+
+    def reset(self) -> None:
+        self._q[:] = 0
+
+    def step(self, u: F32) -> F32:
+        z = np.clip(self.wh(u)[: self.k] / self.clip, -1.0, 1.0)
+        code = ((z + 1.0) * 0.5 * self.levels).round().astype(self.dtype)
+        self._q[1:] = self._q[:-1]
+        self._q[0] = code
+        deq = self._q.astype(np.float32) / self.levels * 2.0 - 1.0
+        return (deq * self.clip).ravel().astype(np.float32)
+
+
 @dataclass(frozen=True)
 class ByteReport:
     name: str

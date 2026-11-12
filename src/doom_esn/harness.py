@@ -32,8 +32,13 @@ class Encoder(Protocol):
     def __call__(self, frame: np.ndarray) -> F32: ...
 
 
-def build_encoder(kind: str, env: Any, probe_steps: int) -> Encoder:
-    """Return an encoder by name. ``pool`` is fitted here; ``mobilenet`` is pretrained."""
+def build_encoder(kind: str, env: Any, probe_steps: int, grid: int = 3) -> Encoder:
+    """Return an encoder by name. ``pool`` is fitted here; ``mobilenet`` is pretrained.
+
+    ``grid`` sets the MobileNet spatial resolution: ``grid=1`` is global average pooling
+    (the original, spatially blind latent), ``grid=3`` keeps a 3x3 map so the readout can
+    see *where* things are on screen.
+    """
     if kind == "pool":
         enc = FrameEncoder(24, 32)
         enc.fit(encode_pool(env, enc, probe_steps, seed=0))
@@ -41,7 +46,7 @@ def build_encoder(kind: str, env: Any, probe_steps: int) -> Encoder:
     if kind == "mobilenet":
         from .perception import MobileNetEncoder
 
-        return MobileNetEncoder(size=96, pretrained=True)
+        return MobileNetEncoder(size=96, pretrained=True, grid=grid)
     raise ValueError(f"unknown encoder {kind!r}")
 
 
@@ -180,3 +185,140 @@ def evaluate(
         rets.append(total)
         times.extend(t)
     return np.asarray(rets, np.float32), np.asarray(times, np.float32)
+
+
+def evaluate_seeds(
+    env: Any, enc: Encoder, memory: Any, policy: Any, seeds: list[int], max_steps: int
+) -> F32:
+    """Greedy evaluation on an explicit list of episode seeds (for paired comparisons)."""
+    rets = []
+    for sd in seeds:
+        total, _, _ = rollout(env, enc, memory, policy, sd, max_steps)
+        rets.append(total)
+    return np.asarray(rets, np.float32)
+
+
+def uniform_random_returns(env: Any, seeds: list[int], max_steps: int) -> F32:
+    """Return of a uniform-random policy on the same episodes.
+
+    The RNG is seeded once per episode (not per step) and draws a *fresh* action every
+    step, so this is a genuine uniform-random baseline -- the bug the repo fixed in
+    ``scripts/play.py`` was re-seeding every step, which silently made it constant-action.
+    """
+    n_act = int(env.action_space.n)
+    rets = []
+    for sd in seeds:
+        rng = np.random.default_rng(sd)
+        _, _ = env.reset(seed=sd)
+        total = 0.0
+        for _ in range(max_steps):
+            _, r, term, trunc, _ = env.step(int(rng.integers(n_act)))
+            total += r
+            if term or trunc:
+                break
+        rets.append(total)
+    return np.asarray(rets, np.float32)
+
+
+def constant_action_returns(env: Any, action: int, seeds: list[int], max_steps: int) -> F32:
+    """Return of a fixed action repeated every step (the 'always do the same thing' null)."""
+    rets = []
+    for sd in seeds:
+        _, _ = env.reset(seed=sd)
+        total = 0.0
+        for _ in range(max_steps):
+            _, r, term, trunc, _ = env.step(action)
+            total += r
+            if term or trunc:
+                break
+        rets.append(total)
+    return np.asarray(rets, np.float32)
+
+
+def best_constant_action(env: Any, seeds: list[int], max_steps: int) -> tuple[int, F32]:
+    """The best single fixed action, chosen on ``seeds`` (a strong memoryless baseline)."""
+    best_a, best = 0, None
+    for a in range(int(env.action_space.n)):
+        r = constant_action_returns(env, a, seeds, max_steps)
+        if best is None or r.mean() > best.mean():
+            best_a, best = a, r
+    assert best is not None
+    return best_a, best
+
+
+class _ReplayBuffer:
+    """Append-only transition store. Fitted-Q refits on *all* data seen so far.
+
+    The original ``train_readout`` refit on only the latest round's fresh transitions, so
+    each refit could forget what it had learned (round-to-round return oscillated by +-100
+    on TakeCover). Accumulating the data makes each refit strictly better-informed and the
+    policy monotone-ish instead of noisy.
+    """
+
+    def __init__(self) -> None:
+        self.S: list[F32] = []
+        self.A: list[np.ndarray] = []
+        self.R: list[F32] = []
+        self.S2: list[F32] = []
+        self.D: list[np.ndarray] = []
+
+    def add(self, data: tuple[F32, np.ndarray, F32, F32, np.ndarray]) -> None:
+        S, A, R, S2, D = data
+        self.S.append(S)
+        self.A.append(A)
+        self.R.append(R)
+        self.S2.append(S2)
+        self.D.append(D)
+
+    def arrays(self) -> tuple[F32, np.ndarray, F32, F32, np.ndarray]:
+        return (
+            np.concatenate(self.S, axis=0),
+            np.concatenate(self.A, axis=0),
+            np.concatenate(self.R, axis=0),
+            np.concatenate(self.S2, axis=0),
+            np.concatenate(self.D, axis=0),
+        )
+
+    def __len__(self) -> int:
+        return int(sum(len(s) for s in self.S))
+
+
+def train_readout_robust(
+    env: Any,
+    enc: Encoder,
+    memory_ctor: Any,
+    n_act: int,
+    rounds: int,
+    eps_episodes: int,
+    seed0: int,
+    max_steps: int,
+    val_seeds: list[int],
+    gamma: float = 0.99,
+    ridge: float = 1e-3,
+    iters: int = 20,
+) -> tuple[LinearQ, dict[str, Any]]:
+    """Iterated fitted-Q with a replay buffer and validation-based model selection.
+
+    Each round: collect with an epsilon-greedy policy, add to the buffer, refit the linear
+    readout on the whole buffer, and score the greedy policy on ``val_seeds``. The returned
+    readout is the round with the best *validation* return, which removes the round-to-round
+    regression that made the original learner no better than random. ``val_seeds`` must be
+    disjoint from the evaluation seeds.
+    """
+    buf = _ReplayBuffer()
+    q = LinearQ(np.zeros((memory_ctor().dim + 1, n_act), np.float32))
+    best_q, best_val, best_round = q, -np.inf, -1
+    history: list[dict[str, Any]] = []
+    for rnd in range(rounds):
+        eps = 1.0 if rnd == 0 else max(0.05, 0.6**rnd)
+        data = collect(
+            env, enc, memory_ctor(), q.act, eps_episodes, seed0 + 1000 * rnd, max_steps, eps
+        )
+        buf.add(data)
+        S, A, R, S2, D = buf.arrays()
+        q = LinearQ.fit(S, A, R, S2, D, n_act, gamma=gamma, ridge=ridge, iters=iters)
+        val = float(evaluate_seeds(env, enc, memory_ctor(), q.act, val_seeds, max_steps).mean())
+        history.append({"round": rnd, "eps": eps, "transitions": len(buf), "val_return": val})
+        if val > best_val:
+            best_q, best_val, best_round = q, val, rnd
+    return best_q, {"best_round": best_round, "best_val_return": best_val, "history": history}

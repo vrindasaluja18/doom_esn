@@ -21,18 +21,25 @@ _STD = np.array([0.229, 0.224, 0.225], np.float32)
 
 
 class MobileNetEncoder:
-    """Frozen ImageNet MobileNetV3-Small trunk; outputs a pooled ``dim``-d latent."""
+    """Frozen ImageNet MobileNetV3-Small trunk; outputs a ``grid x grid`` spatial latent.
 
-    def __init__(self, size: int = 96, pretrained: bool = True) -> None:
+    Global average pooling collapses the last feature map to one vector per frame, which
+    throws away *where* things are on screen. Doom needs that layout (the monster's side,
+    the corridor's walls), and the ablation in ``docs/results`` shows the spatial grid is
+    what lets the agent beat a uniform-random policy. ``grid=1`` recovers the old pooled
+    behaviour for comparison.
+    """
+
+    def __init__(self, size: int = 96, pretrained: bool = True, grid: int = 3) -> None:
         weights = MobileNet_V3_Small_Weights.IMAGENET1K_V1 if pretrained else None
         net = mobilenet_v3_small(weights=weights)
         self.features = net.features
-        self.pool = torch.nn.AdaptiveAvgPool2d(1)
+        self.grid = grid
         self.features.eval()
         for p in self.features.parameters():
             p.requires_grad_(False)
         self.size = size
-        self.dim = 576  # mobilenet_v3_small last-channel width
+        self.dim = 576 * grid * grid  # mobilenet_v3_small last-channel width
         self.name = "mobilenet_v3_small_imagenet" if pretrained else "mobilenet_v3_small_random"
         self.params = sum(p.numel() for p in self.features.parameters())
 
@@ -48,7 +55,8 @@ class MobileNetEncoder:
     @torch.no_grad()
     def __call__(self, frame: np.ndarray) -> F32:
         f = self.features(self._prep(frame))
-        return self.pool(f).flatten().numpy().astype(np.float32)
+        f = nn.functional.adaptive_avg_pool2d(f, (self.grid, self.grid))
+        return f.flatten().numpy().astype(np.float32)
 
     def state_nbytes(self) -> int:
         return 0  # perception is not part of the budgeted memory state
