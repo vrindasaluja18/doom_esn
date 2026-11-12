@@ -29,3 +29,33 @@ the design *can* reject. Outcomes are REJECT / INCONCLUSIVE / UNDERPOWERED only:
 bootstrap CI when n >= the module's minimum, otherwise raw points are shown.
 
 **Not planned (exploratory, will be labelled as such):** anything else, including per-seed stories.
+
+---
+
+## Amendment 1 — collect-once / fit-all-arms-offline (2026-11-12)
+
+The original design re-rolled the engine and the CNN for every `(arm, seed, round)`. Measured on
+the CPU box this is ~4.1 ms/frame, so one scenario (13 arms × 3 seeds × 176 episodes × ~58 steps)
+takes **30–45 minutes** and — because results were only written at the end — loses *everything*
+if the process is killed (which happened repeatedly). It also gave each arm a *different* random
+rollout, confounding the comparison.
+
+The benchmark now does:
+
+1. collect ONE latent dataset per seed under a uniform-random policy, cached to
+   `docs/results/latents/` (the encoder is paid once, not once per arm);
+2. replay every memory back-end over those *identical* latents and fit the linear fitted-Q
+   readout in pure numpy — no engine, no CNN per arm;
+3. evaluate greedily on held-out seeds (unchanged).
+
+This is a *protocol change*, so it is recorded here rather than silently substituted. It makes
+all arms see identical data (a strictly cleaner comparison), cuts a scenario to a few minutes,
+and checkpoints each `(backend, seed)` row to `docs/results/memory/<scenario>.jsonl` so a run
+resumes instead of restarting. The preregistered statistics (exact permutation, Holm) still
+apply to the per-seed returns; the `random` and `best-fixed-action` nulls are now evaluated on
+the *same* episodes as every arm, so comparisons are paired.
+
+The preregistered CMA-ES arm list above is superseded by the solved linear readout (see
+`docs/MATHS.md` §5: a linear argmax readout needs one ridge solve, not a search); the arms are
+now the representation/quantisation sweep in `bench/memory_budget.py::build_backends`.
+

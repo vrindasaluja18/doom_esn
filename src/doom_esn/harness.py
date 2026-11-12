@@ -63,6 +63,73 @@ def encode_pool(env: Any, enc: Encoder, n_steps: int, seed: int = 0) -> F32:
     return out
 
 
+def collect_latents(
+    env: Any, enc: Encoder, n_episodes: int, seed0: int, max_steps: int
+) -> tuple[F32, np.ndarray, F32, F32]:
+    """Roll a uniform-random policy and record one row per step.
+
+    Returns ``(U, A, R, D)`` where ``U[t]`` is the encoded frame *before* the action and
+    ``(A[t], R[t], D[t])`` describe the transition out of it. The expensive part of every
+    experiment is the encoder + engine rollout, and it is identical for all memory arms, so
+    this is called once per seed and the result is cached: every arm then fits offline on the
+    same latents, which both removes the data-collection confound and makes each arm's fit a
+    pure-numpy step (no CNN, no engine).
+    """
+    n_act = int(env.action_space.n)
+    rng = np.random.default_rng(seed0)
+    U: list[F32] = []
+    A: list[int] = []
+    R: list[float] = []
+    D: list[float] = []
+    for ep in range(n_episodes):
+        obs, _ = env.reset(seed=seed0 + ep)
+        for _ in range(max_steps):
+            U.append(enc(obs["screen"]))
+            a = int(rng.integers(n_act))
+            obs, r, term, trunc, _ = env.step(a)
+            A.append(a)
+            R.append(float(r))
+            D.append(float(term or trunc))
+            if term or trunc:
+                break
+    return (
+        np.asarray(U, np.float32),
+        np.asarray(A, np.int64),
+        np.asarray(R, np.float32),
+        np.asarray(D, np.float32),
+    )
+
+
+def roll_memory_over_latents(
+    memory: Any, U: F32, A: np.ndarray, R: F32, D: F32
+) -> tuple[F32, np.ndarray, F32, F32, F32]:
+    """Replay a memory over a fixed latent sequence, resetting at episode boundaries.
+
+    Returns transitions ``(S, A, R, S2, D)`` aligned exactly like :func:`collect`, so a
+    readout can be fitted on cached latents with no engine or encoder. ``U[t]`` is the frame
+    *before* action ``A[t]``; the memory state after stepping ``U[t]`` is ``S[t]`` and after
+    the next frame is ``S2[t]``. The final transition (out of ``U[-1]``) is kept only when it
+    is terminal, because only then does fitted-Q ignore ``S2`` (its ``done`` zeroes the
+    bootstrap) -- and it carries the episode's goal reward, which must not be dropped.
+    """
+    n = len(U)
+    m = n - 1 + (1 if n and D[-1] == 1.0 else 0)
+    S = np.empty((m, memory.dim), np.float32)
+    S2 = np.zeros((m, memory.dim), np.float32)
+    memory.reset()
+    s = memory.step(U[0])
+    for t in range(1, n):
+        S[t - 1] = s
+        s = memory.step(U[t])
+        S2[t - 1] = s
+        if D[t - 1]:
+            memory.reset()
+            s = memory.step(U[t])
+    if m > n - 1:  # the terminal last step: S is the state after the final frame
+        S[-1] = s
+    return S, A[:m], R[:m], S2, D[:m]
+
+
 def probe_states(weights: ReservoirWeights, U: F32, dt: float = DT) -> F32:
     """Reservoir states driven by an already-encoded sequence (for fitting the whitener)."""
     x = weights.zeros()

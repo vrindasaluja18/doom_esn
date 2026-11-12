@@ -10,3 +10,7 @@ dist/
 # generated benchmark data (not source)
 docs/results/latents.npy
 _vizdoom.ini
+
+# regenerable benchmark cache and per-row checkpoints (evidence is the final .json)
+docs/results/latents/
+docs/results/memory/*.jsonl

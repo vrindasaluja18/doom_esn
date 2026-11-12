@@ -69,49 +69,56 @@ Concretely, we ask three things and answer each with a measurement:
 
 ## 2. Headline result
 
-`VizdoomTakeCover-v1`, frozen pretrained perception, 3 seeds, 20 held-out episodes each
+`VizdoomTakeCover-v1`, frozen pretrained perception, 3 seeds, 20 held-out episodes each,
+paired against the random baseline on the *same* episodes
 (figure: [`docs/results/return_vs_bytes.png`](docs/results/return_vs_bytes.png)):
 
-| back-end | resident state | fixed table | readout | return | ms/frame |
+| back-end | resident state | fixed table | readout | return | Δ vs random |
 |---|---:|---:|---:|---:|---:|
-| window k=2 (no reservoir) | 4608 B | 0 | 13836 B | 233.6 ± 20.4 | 4.00 |
-| window k=4 | 9216 B | 0 | 27660 B | 243.0 ± 26.3 | 4.29 |
-| ESN 400 (float32) | 1600 B | 0.99 MB | 4812 B | 257.4 ± 29.0 | 4.43 |
-| ESN 400 → whitened 24 | 1600 B | 1.03 MB | 300 B | 233.6 ± 15.1 | 4.38 |
-| ESN 400 → **16-bit × 24** | **48 B** | 1.03 MB | 300 B | **265.7 ± 29.4** | 4.42 |
-| ESN 400 → 8-bit × 24 | 24 B | 1.03 MB | 300 B | 244.2 ± 26.1 | 4.42 |
-| ESN 400 → **codebook k=256** | **1 B** | 1.05 MB | 300 B | 219.2 ± 22.0 | 4.20 |
-| ESN 400 + tanh400 (fair null) | 1600 B | 1.63 MB | 4812 B | 279.2 ± 32.2 | 4.16 |
-| window k=2 + tanh400 (fair null) | 4608 B | 1.84 MB | 4812 B | 265.9 ± 27.7 | 11.0 |
-| *random policy (reference)* | — | — | — | *245.9 ± 19.7* | — |
+| *random policy (reference)* | — | — | — | *244.2 ± 22.0* | — |
+| *best fixed action* | — | — | — | *155.4 ± 5.4* | — |
+| codebook k=256 on ESN | **1 B** | 8.5 MB | 588 B | 251.9 ± 12.6 | +7.6 |
+| 8-bit × 24 on ESN | 48 B | 8.4 MB | 588 B | 237.1 ± 14.2 | −7.1 |
+| window k=1 (memoryless) | 192 B | 1.0 MB | 588 B | 283.1 ± 17.6 | +38.9 |
+| **window k=2** | **384 B** | 1.0 MB | 1.2 KB | **308.2 ± 21.0** | **+64.0** |
+| window k=4 | 768 B | 1.0 MB | 2.3 KB | 294.0 ± 18.5 | +49.8 |
+| window k=8 | 1536 B | 1.0 MB | 4.6 KB | 239.4 ± 12.9 | −4.8 |
+| ESN 400 (float32) | 1600 B | 8.4 MB | 4812 B | 237.7 ± 12.0 | −6.5 |
+| ESN 400 + tanh400 (fair null) | 1600 B | 9.0 MB | 4812 B | 238.5 ± 14.1 | −5.7 |
 
 Reading:
 
-- The curve is **flat**: the 48-byte state (265.7) sits near the top, the 1600-byte reservoir
-  (257.4) and the 4608-byte window (233.6) are within one standard error of it, and even the
-  best arm overall (reservoir + tanh400, 279.2) is within one standard error of the 48-byte
-  state. The honest claim is **"equal-or-better at 33× less resident state"**, *not*
-  "quantisation helps".
-- **The random baseline is strong.** A true uniform-random policy returns **245.9 ± 19.7** on
-  TakeCover. So the 48-byte state does **not** clearly beat random, and the 1-byte codebook
-  (219) is *below* random. *(An earlier draft reported "random = 164.3"; that number came from a
-  bug in `scripts/play.py` — the baseline RNG was re-seeded on every step, so the policy was
-  constant-action. Fixed; see section 7.)* TakeCover is close to solved by a couple of frames,
-  so it is a **weak** memory test — which is why section 2.1 adds a scenario that needs memory.
-- The cost is *moved*, not removed: the quantiser pays a fixed ~1 MB whitener/codebook table.
-  The trade is a fixed table for a tiny resident state — exactly the RAM-vs-storage decision
-  in section 4.
-- **Fair null (section 2.2).** Applying the *same* fixed random nonlinearity (`tanh400`) to
-  both memories moves the window up (233.6 → 265.9) and the reservoir up (257.4 → 279.2): part
-  of the "reservoir vs window" gap is nonlinearity, not memory. The reservoir still leads, but
-  the margin shrinks.
-- **The pooled (non-pretrained) arm shows no reliable effect.** On `DefendLine` with the pooled
-  `24x32` encoder every back-end sits near the random baseline (7.18 ± 0.41): the 1600-byte
-  reservoir returns 6.9 ± 0.8 and the 24-byte quantised state 11.1 ± 1.0, but the per-seed
-  spread (e.g. esn400 = [4.5, 4.9, 11.4]) is larger than any gap, so we do **not** claim
-  "compression helps" *or* "compression hurts" there. The honest statement: with a weak encoder
-  the linear readout has no signal to compress, on either side
-  (`docs/results/memory/VizdoomDefendLine-v1.json`). This is why the pretrained encoder matters.
+- **A short window beats the reservoir.** The best arm is a **384-byte window of 2 whitened
+  frames** (308.2); the 1600-byte reservoir (237.7) is *at* the random baseline. So on a
+  frame-reactive scenario, recency is the whole signal and a recurrent state buys nothing —
+  a clean, useful negative for the "reservoir memory" hypothesis.
+- **But the win is not yet statistically clean.** The window's paired edge over random is
+  +64.0 with a pooled standard error of 37.2 (≈1.7 SE), so the honest claim is
+  **"equal-or-better at 4× less resident state"**, not "the window beats random".
+- **The random baseline is strong.** A uniform-random policy returns 244.2 ± 22.0 on TakeCover,
+  so a good fraction of every arm's return is the scenario being partly solvable by reflex.
+  TakeCover is a **weak** memory test — which is why section 2.1 adds a scenario that needs memory.
+- **Quantisation is cheap here.** The 1-byte codebook (251.9) and the 48-byte 8-bit state
+  (237.1) are within one standard error of the float32 reservoir, so compressing the state
+  ~1600× costs nothing measurable — but it also *buys* nothing, since the reservoir itself is
+  at baseline. The cost is *moved*, not removed: the quantiser pays a fixed ~8 MB
+  whitener/codebook table, exactly the RAM-vs-storage trade in section 4.
+- **Fair null (section 2.2).** Applying the *same* fixed random nonlinearity (`tanh400`) to the
+  reservoir does not help it (237.7 → 238.5), so the reservoir's null result is not an artifact
+  of a linear readout.
+- **The pooled (non-pretrained) arm shows a small real effect.** On `DefendLine` with the pooled
+  `24x32` encoder the window k=1 (11.3 ± 0.9) and the 48-byte quantised ESN state (11.1 ± 1.0)
+  both sit ~3 SE above random (7.7 ± 0.9), while the float32 reservoir (5.6 ± 0.6) is *below*
+  random — a solved linear readout on a 1600-d random reservoir overfits on this little data
+  (`docs/results/memory/VizdoomDefendLine-v1.json`). This is why the pretrained encoder and the
+  small state matter.
+
+> **Protocol note.** These numbers come from the **collect-once / fit-all-arms-offline**
+> benchmark (`bench/memory_budget.py`): one random-policy latent dataset per seed is collected
+> and cached, then *every* arm is fitted on those identical latents in pure numpy. Earlier drafts
+> re-rolled the engine and the CNN for every `(arm, seed, round)`, which took 30–45 min per
+> scenario, confounded arms by giving them different rollouts, and lost all results if the
+> process was killed. See `AGENTS.md` for the protocol and section 7 for the history.
 
 ### 2.1 A scenario that actually needs memory: My Way Home
 
@@ -135,18 +142,61 @@ perception would be needed before My Way Home can carry a memory claim.
 
 A confound: the window feeds a *linear* readout, the reservoir feeds random *nonlinear* features.
 Adding the identical fixed random `tanh` projection (`RandomTanhFeatures`, 400 units, seed 0) to
-both isolates the memory *mechanism*:
+the reservoir isolates the memory *mechanism* from the nonlinearity:
 
 | pair | linear | + tanh400 | Δ |
 |---|---:|---:|---:|
-| window k=2 | 233.6 ± 20.4 | 265.9 ± 27.7 | +32.3 |
-| reservoir 400 | 257.4 ± 29.0 | 279.2 ± 32.2 | +21.8 |
+| reservoir 400 | 237.7 ± 12.0 | 238.5 ± 14.1 | +0.8 |
 
-The nonlinearity lifts both arms, so part of the raw "reservoir > window" gap is a nonlinearity
-effect, not a memory effect. After the fair null the reservoir still edges the window
-(279.2 vs 265.9), but the difference is inside one standard error. The honest reading: on this
-scenario **memory representation and fixed nonlinearity are entangled**, and neither is clearly
-decisive.
+The nonlinearity does **not** lift the reservoir (Δ = +0.8, well inside one standard error), so
+the reservoir's null result on TakeCover is *not* an artifact of a linear readout: adding a fixed
+random nonlinearity does not recover the memory signal. The window k=2 arm (384 B, 308.2) still
+leads the fair-null reservoir (1600 B, 238.5) by a wide margin, and at a quarter of the bytes.
+
+### 2.3 Measuring memory directly: the delay-memory probe
+
+Return is a *noisy, indirect* proxy for memory: on TakeCover the random baseline is ~244 and the
+per-seed spread swamps the effect. So we also measure the memory itself, on the **same cached
+latents**, with a linear-probe test: for each delay `k`, fit a ridge readout from the memory
+state `s_t` to the whitened latent `k` frames earlier and report held-out `R²`. `R²(k)` is the
+*delay-memory capacity* — a memoryless arm can only decode `k=1`; an arm that keeps more of the
+past decodes larger `k`. It is a regression on a fixed dataset, so it has small error bars and
+takes seconds per arm (`bench/memory_probe.py`, `docs/results/memory_probe.json`):
+
+| back-end | state B | R²(k=1) | R²(k=2) | R²(k=4) | R²(k=8) | mean |
+|---|---:|---:|---:|---:|---:|---:|
+| window k=8 (16-bit) | 1536 | 1.00 | 1.00 | 1.00 | 0.23 | **0.605** |
+| window k=8 (8-bit) | 384 | 1.00 | 1.00 | 1.00 | 0.23 | **0.605** |
+| window k=4 | 768 | 1.00 | 1.00 | 0.30 | 0.06 | 0.455 |
+| window k=2 | 384 | 1.00 | 0.31 | 0.15 | 0.05 | 0.297 |
+| window k=1 | 192 | 0.31 | 0.21 | 0.11 | 0.06 | 0.135 |
+| ESN → whitened 24 | 1600 | 0.41 | 0.29 | 0.16 | 0.06 | 0.181 |
+| ESN → 8-bit × 24 | **48** | 0.41 | 0.29 | 0.16 | 0.06 | 0.180 |
+| ESN → codebook k=256 | **1** | 0.23 | 0.17 | 0.09 | 0.02 | 0.098 |
+| ESN 400 (float32) | 1600 | 0.41 | 0.23 | −0.01 | −0.20 | 0.011 |
+| ESN 400 + tanh400 | 1600 | 0.41 | 0.20 | −0.02 | −0.19 | 0.007 |
+
+This resolves the ambiguity the return curve could not:
+
+- **The reservoir genuinely has *worse* memory than a short window.** The raw 1600-byte
+  reservoir keeps only ~1 frame (R² falls to −0.20 by `k=8`); the 384-byte window keeps 2 frames
+  perfectly. So the reservoir's null return is *not* a measurement artifact — its state simply
+  does not hold the past. A random reservoir is a poor memory here; a delay line is a good one.
+- **Projection is what makes the reservoir a usable memory.** Whitening the reservoir state
+  (1600 B → 24 axes) *raises* its far-delay R² (mean 0.011 → 0.181), i.e. the useful memory is in
+  a low-dimensional subspace a linear readout cannot find unaided. That is the real role of the
+  whitener: not compression, but **extraction**.
+- **Quantisation is nearly free, but codebooking is not.** 8-bit × 24 keeps the whitened
+  reservoir's R² exactly (0.180 vs 0.181) at 48 B — 33× smaller. The 1-byte codebook loses about
+  half the memory (0.098), so 1 byte *does* cost real capacity.
+- **The two measurements agree.** The arm with the best measured memory (window k=8, mean R²
+  0.605) is *not* the best return arm (window k=2, 308.2): keeping 8 frames helps a *probe* but
+  adds readout noise for *control*. Memory capacity and task return are related but not identical,
+  which is exactly why measuring both matters.
+
+> The probe uses `docs/results/latents/` (regenerable), so run `bench/memory_budget.py` first.
+> Pairs spanning an episode boundary are excluded, since the memory is reset there by
+> construction.
 
 ## 3. Pipeline
 

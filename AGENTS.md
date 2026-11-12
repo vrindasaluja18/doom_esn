@@ -21,14 +21,35 @@ research program is in `docs/RESEARCH_PROGRAM.md`; the maths ledger (with
 
 ```bash
 make check                                  # ruff + mypy + pytest
-python -m pytest -q                         # 41 tests, warnings as errors
+python -m pytest -q                         # 47 tests, warnings as errors
 ruff check . && mypy                        # lint + types (mypy is strict: disallow_untyped_defs)
 python bench/memory_budget.py --scenario VizdoomTakeCover-v1 --perception mobilenet --seeds 3
+python bench/memory_probe.py --scenario VizdoomTakeCover-v1 --perception mobilenet --grid 3
 python bench/plot.py                        # -> docs/results/return_vs_bytes.png
 python scripts/play.py --scenario VizdoomTakeCover-v1 --perception mobilenet
 python scripts/topology_probe.py --scenario VizdoomTakeCover-v1 --perception mobilenet --bits 4
 python scripts/memory_footprint.py --scenario VizdoomTakeCover-v1
 ```
+
+## Benchmark protocol (do not slow it down again)
+
+`bench/memory_budget.py` is **collect-once, fit-all-arms-offline**:
+
+1. collect ONE latent dataset per seed under a uniform-random policy and cache it to
+   `docs/results/latents/*.npz` (keyed by scenario/seed/episodes/max-steps);
+2. replay every memory back-end over those *same* cached latents and solve the linear
+   fitted-Q readout in pure numpy — no engine, no CNN per arm;
+3. evaluate greedily on held-out seeds.
+
+The encoder is the bottleneck (~3.5 ms/frame single-frame, ~0.4 ms/frame batched), so
+re-rolling the engine and CNN for every `(arm, seed, round)` made one scenario take 30-45 min
+and lose everything if the process was killed. Each `(backend, seed)` row is appended to
+`docs/results/memory/<scenario>.jsonl` as soon as it is computed, and `--resume` skips rows
+already present, so a run survives a restart. Do not reintroduce per-arm rollouts.
+
+`docs/results/latents/` is gitignored (regenerable data); the `.jsonl` checkpoints are also
+gitignored; only the final `<scenario>.json` evidence files are committed.
+
 
 ## Conventions
 
